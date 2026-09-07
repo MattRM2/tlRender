@@ -71,6 +71,35 @@ namespace tl
                     { { "FFmpeg/Codec", "libsvtav1" },
                       { "FFmpeg/CodecOptions", "crf=35" } },
                     false },
+                // Encoded by the FFmpeg built here. x264 and x265 are GPL, so
+                // these exist only where the build was configured for them
+                // (TLRENDER_X264, TLRENDER_X265, TLRENDER_LIBVPX); a build
+                // without them names the codec, fails to find the encoder and
+                // says so. The command line presets below stay either way:
+                // they are how someone with no such build still exports H.264.
+                { "H.264",
+                    { { "FFmpeg/Codec", "libx264" },
+                      { "FFmpeg/CodecOptions", "crf=18 preset=slow" } },
+                    false },
+                { "HEVC",
+                    { { "FFmpeg/Codec", "libx265" },
+                      { "FFmpeg/CodecOptions", "crf=20 preset=slow" } },
+                    false },
+                { "VP9",
+                    { { "FFmpeg/Codec", "libvpx-vp9" },
+                      { "FFmpeg/CodecOptions", "crf=28 b=0" } },
+                    false },
+                // The GPU encoders, for a long export that does not need to be
+                // as small as x264 makes it. "p5" is the slow end of NVENC's
+                // quality presets, and cq is its constant-quality control.
+                { "H.264 (NVIDIA)",
+                    { { "FFmpeg/Codec", "h264_nvenc" },
+                      { "FFmpeg/CodecOptions", "preset=p5 rc=vbr cq=19" } },
+                    false },
+                { "HEVC (NVIDIA)",
+                    { { "FFmpeg/Codec", "hevc_nvenc" },
+                      { "FFmpeg/CodecOptions", "preset=p5 rc=vbr cq=21" } },
+                    false },
                 { "H.264 (ffmpeg command)",
                     { { "FFmpeg/WriteCommandLine", "1" },
                       { "FFmpeg/WritePreset", "H.264" } },

@@ -18,6 +18,9 @@ endif()
 set(FFmpeg_URL https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n8.1.2.tar.gz)
 
 set(FFmpeg_DEPS)
+if(WIN32)
+    list(APPEND FFmpeg_DEPS msys-packages)
+endif()
 if(TLRENDER_AOM)
     list(APPEND FFmpeg_DEPS aom)
 endif()
@@ -27,7 +30,16 @@ endif()
 if(TLRENDER_NASM)
     list(APPEND FFmpeg_DEPS NASM)
 endif()
-if(NOT WIN32 AND NOT APPLE)
+if(TLRENDER_X264)
+    list(APPEND FFmpeg_DEPS x264)
+endif()
+if(TLRENDER_X265)
+    list(APPEND FFmpeg_DEPS x265)
+endif()
+if(TLRENDER_LIBVPX)
+    list(APPEND FFmpeg_DEPS libvpx)
+endif()
+if((NOT WIN32 AND NOT APPLE) OR TLRENDER_FFMPEG_NVENC)
     list(APPEND FFmpeg_DEPS nv-codec-headers)
 endif()
 
@@ -98,7 +110,6 @@ set(FFmpeg_CONFIGURE_ARGS
     --disable-cuda-llvm
     --disable-d3d12va
     --disable-mediafoundation
-    --disable-nvenc
     --disable-v4l2-m2m
     --disable-vdpau
     --enable-pic
@@ -106,12 +117,44 @@ set(FFmpeg_CONFIGURE_ARGS
     ${FFmpeg_CXXFLAGS}
     ${FFmpeg_OBJCFLAGS}
     ${FFmpeg_LDFLAGS})
+
+# The encoders this fork links in. x264 and x265 are GPL, so FFmpeg is
+# configured with --enable-gpl when either is on, and what comes out may not
+# be distributed under this project's BSD terms -- it is a personal build.
+# libvpx is BSD and NVENC is NVIDIA's headers under MIT; neither of those
+# carries that condition.
+#
+# These are encoders only. TLRENDER_FFMPEG_MINIMAL turns decoding down to a
+# whitelist and would drop them, so the two are not meant to be combined.
+if(TLRENDER_FFMPEG_NVENC)
+    list(APPEND FFmpeg_CONFIGURE_ARGS --enable-nvenc)
+else()
+    list(APPEND FFmpeg_CONFIGURE_ARGS --disable-nvenc)
+endif()
+if(TLRENDER_X264 OR TLRENDER_X265)
+    list(APPEND FFmpeg_CONFIGURE_ARGS --enable-gpl)
+endif()
+if(TLRENDER_X264)
+    list(APPEND FFmpeg_CONFIGURE_ARGS --enable-libx264)
+endif()
+if(TLRENDER_X265)
+    list(APPEND FFmpeg_CONFIGURE_ARGS --enable-libx265)
+endif()
+if(TLRENDER_LIBVPX)
+    list(APPEND FFmpeg_CONFIGURE_ARGS --enable-libvpx)
+endif()
 if(WIN32 OR APPLE)
     # The native APIs cover these platforms.
     list(APPEND FFmpeg_CONFIGURE_ARGS
         --disable-cuvid
-        --disable-ffnvcodec
         --disable-nvdec)
+    if(TLRENDER_FFMPEG_NVENC)
+        # Decoding still goes through D3D11VA or VideoToolbox; these headers
+        # are here for the encoder, which loads the driver at run time.
+        list(APPEND FFmpeg_CONFIGURE_ARGS --enable-ffnvcodec)
+    else()
+        list(APPEND FFmpeg_CONFIGURE_ARGS --disable-ffnvcodec)
+    endif()
 else()
     # NVIDIA hardware on Linux decodes through NVDEC; VAAPI means
     # nothing to its driver (#833). The headers are built above and
@@ -365,8 +408,7 @@ if(WIN32)
     # exported into a shell that has nothing to read it, and --enable-libaom
     # fails however well the libraries themselves were built.
     set(FFmpeg_CONFIGURE ${FFmpeg_MSYS2}
-        -c "pacman -S diffutils make nasm pkgconf --noconfirm && \
-        export PKG_CONFIG_PATH=${FFmpeg_PKG_CONFIG} && \
+        -c "export PKG_CONFIG_PATH=${FFmpeg_PKG_CONFIG} && \
         ./configure ${FFmpeg_CONFIGURE_ARGS_TMP}")
     set(FFmpeg_BUILD ${FFmpeg_MSYS2} -c "make -j${FFmpeg_BUILD_JOBS}")
     set(FFmpeg_INSTALL ${FFmpeg_MSYS2} -c "make install"
